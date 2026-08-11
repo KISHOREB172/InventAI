@@ -1,0 +1,8 @@
+{
+  "appId": "com.inventai.app",
+  "appName": "InventAI",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": true
+  }
+}

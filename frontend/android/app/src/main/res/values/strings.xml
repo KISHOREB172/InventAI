@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">InventAI</string>
+    <string name="title_activity_main">InventAI</string>
+    <string name="package_name">com.inventai.app</string>
+    <string name="custom_url_scheme">com.inventai.app</string>
+</resources>
