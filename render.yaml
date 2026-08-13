@@ -11,7 +11,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.13.5
       - key: ALLOWED_ORIGINS
-        value: https://localhost,capacitor://localhost,https://inventai-web-kishore.onrender.com
+        value: http://localhost,https://localhost,capacitor://localhost,https://inventai-web-kishore.onrender.com
       - key: GEMINI_API_KEY
         sync: false
       - key: OPENAI_API_KEY
