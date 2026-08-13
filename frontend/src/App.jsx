@@ -183,7 +183,7 @@ function App() {
           {!result && <div className="mx-auto mt-12 max-w-4xl">
             <p className="mb-4 text-center text-[11px] font-bold uppercase tracking-[.22em] text-slate-600">Every analysis includes</p>
             <div className="grid grid-cols-2 gap-4 text-center md:grid-cols-4">{[["4", "scored dimensions"], ["3", "recommended phases"], ["1", "experiment to run first"], ["<60s", "typical turnaround"]].map(([n,l]) => <div key={l}><div className="text-2xl font-black text-white">{n}</div><div className="text-xs uppercase tracking-wider text-slate-500">{l}</div></div>)}</div>
-            <p className="mt-4 text-center text-xs text-slate-600">These are output counts, not scores for your idea. Your results appear in the decision brief after analysis.</p>
+            <p className="mt-4 text-center text-xs text-slate-600">These are output counts, not scores for your idea. The first request can take up to 2 minutes while the free server wakes.</p>
           </div>}
         </div>
       </section>

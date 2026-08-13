@@ -4,7 +4,9 @@ const API_URL = import.meta.env.VITE_API_URL || (Capacitor.isNativePlatform() ? 
 
 export async function analyzeIdea(idea, provider = "gemini", mode = "analysis") {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45000);
+  // Render's free tier can need 50+ seconds to wake before the model request begins.
+  // Keep the client alive long enough for both the cold start and structured response.
+  const timeout = setTimeout(() => controller.abort(), 180000);
   let response;
   try {
     response = await fetch(`${API_URL}/analyze`, {
@@ -16,7 +18,7 @@ export async function analyzeIdea(idea, provider = "gemini", mode = "analysis") 
       signal: controller.signal,
     });
   } catch (error) {
-    throw new Error(error.name === "AbortError" ? "Analysis timed out." : "Cannot reach the analysis engine.", { cause: error });
+    throw new Error(error.name === "AbortError" ? "Analysis took longer than 3 minutes. Please retry; the server should now be awake." : "Cannot reach the analysis engine.", { cause: error });
   } finally {
     clearTimeout(timeout);
   }
@@ -38,7 +40,7 @@ export async function analyzeIdea(idea, provider = "gemini", mode = "analysis") 
 
 export async function researchIdea(idea) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeout = setTimeout(() => controller.abort(), 120000);
   try {
     const response = await fetch(`${API_URL}/research`, {
       method: "POST",
@@ -53,7 +55,7 @@ export async function researchIdea(idea) {
     }
     return await response.json();
   } catch (error) {
-    if (error.name === "AbortError") throw new Error("Evidence search timed out.", { cause: error });
+    if (error.name === "AbortError") throw new Error("Evidence search took longer than 2 minutes. Please retry; the server should now be awake.", { cause: error });
     throw error;
   } finally {
     clearTimeout(timeout);
