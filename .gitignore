@@ -13,6 +13,7 @@ backend/venv/
 frontend/node_modules/
 frontend/dist/
 frontend/android/.gradle/
+frontend/android/.gradle-user/
 frontend/android/**/build/
 frontend/android/local.properties
 frontend/android/.idea/
@@ -29,3 +30,4 @@ frontend/android/.idea/
 *.log
 backend/server*.log
 frontend/vite*.log
+*.apk

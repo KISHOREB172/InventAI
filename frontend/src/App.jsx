@@ -5,6 +5,7 @@ import ProjectDashboard from "./components/ProjectDashboard";
 import ModelComparison from "./components/ModelComparison";
 import ResearchEvidence from "./components/ResearchEvidence";
 import HackathonStudio from "./components/HackathonStudio";
+import MobileDecisionView from "./components/MobileDecisionView";
 import { analyzeIdea, researchIdea } from "./services/api";
 import { publishResearch } from "./services/researchStore";
 
@@ -160,7 +161,7 @@ function App() {
 
   return <div className="min-h-screen bg-[#050b14] text-slate-100 selection:bg-cyan-400/30">
     <Navbar />
-    <main>
+    <main className={result ? "has-result" : ""}>
       <section className="home-hero relative overflow-hidden px-5 pb-20 pt-32">
         <div className="hero-glow" />
         <div className="relative mx-auto max-w-6xl">
@@ -193,6 +194,7 @@ function App() {
       {showResearchPanel && !result && <section id="research-evidence" className="px-5 pb-24"><div className="mx-auto max-w-6xl"><ResearchEvidence evidence={research} loading={researchLoading} error={researchError} onRetry={()=>loadResearch(idea.trim())} /></div></section>}
       {result && !demoMode && <section id="research-evidence" className="px-5 pb-24"><div className="mx-auto max-w-6xl"><ResearchEvidence evidence={research} loading={researchLoading} error={researchError} onRetry={()=>loadResearch(idea.trim())} /></div></section>}
       {savedProjects.length > 0 && <ProjectDashboard projects={savedProjects} onOpen={(x)=>{setIdea(x.idea);setResult(x.result);setCompareResults(null);setResearch(null);setResearchError("");window.scrollTo({top:0,behavior:"smooth"});}} onDelete={deleteProject} onUpdate={updateProject}/>} 
+      {result && <MobileDecisionView idea={idea} result={result} projects={savedProjects} onEdit={()=>{setResult(null);setCompareResults(null);window.scrollTo({top:0,behavior:"smooth"});}} />}
     </main>
   </div>;
 }
