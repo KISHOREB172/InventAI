@@ -47,7 +47,7 @@ async function apiRequest(path, { method = "GET", body, signal } = {}) {
       headers: body ? { "Content-Type": "application/json" } : {},
       data: body ? JSON.parse(body) : undefined,
       connectTimeout: 15000,
-      readTimeout: 180000,
+      readTimeout: 30000,
     });
     return {
       ok: response.status >= 200 && response.status < 300,

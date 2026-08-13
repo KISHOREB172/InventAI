@@ -142,6 +142,46 @@ button:hover:not(:disabled) { transform: translateY(-1px); }
   .mobile-bottom-nav button.active { background: #f4f1e9; color: #18211b; }
 }
 
+/* Final Android palette: dark, high-contrast, and comfortable in low light. */
+@media (max-width: 639px) {
+  :root { color-scheme: dark; }
+  body, .home-hero, .mobile-decision { background: #08111d; color: #edf2f7; }
+  nav.fixed, .mobile-appbar { border-color: rgba(255,255,255,.08); background: rgba(8,17,29,.94); }
+  nav.fixed .font-black, nav.fixed button, .mobile-appbar button { color: #edf2f7; }
+  nav.fixed .bg-gradient-to-br { background: #ef6a4c; }
+  .home-hero .hero-glow { background: radial-gradient(circle at 78% 12%,rgba(239,106,76,.13),transparent 46%); }
+  .home-hero h1 { color: #f7f3eb; }
+  .home-hero h1 + p { color: #9ca9b8; }
+  .gradient-text { color: #f18a70; }
+  .idea-composer { border-color: rgba(255,255,255,.09); background: #101c2a; box-shadow: 0 18px 45px rgba(0,0,0,.25); }
+  .idea-composer textarea { background: #0b1623; color: #f1f5f9; }
+  .idea-composer textarea::placeholder { color: #607084; }
+  .idea-composer > div:nth-of-type(2) > div > button:last-child { background: #ef6a4c; color: #17110f; }
+  .mobile-appbar div span, .mobile-section-label, .insight-row small, .next-move small, .pitch-card small { color: #8795a6; }
+  .mobile-appbar button { border-color: rgba(255,255,255,.11); }
+  .decision-lead { background: linear-gradient(145deg,#173c31,#102a25); box-shadow: 0 16px 36px rgba(0,0,0,.3); }
+  .insight-row { border-color: rgba(255,255,255,.09); }
+  .insight-row > span { background: #182536; color: #9cabbc; }
+  .next-move { background: #ef6a4c; color: #1f1410; }
+  .mobile-page-heading p, .roadmap-list p, .pitch-outline p { color: #94a1b1; }
+  .mobile-page-heading small, .roadmap-list small, .pitch-outline > section > span { color: #f18a70; }
+  .human-score-list, .pitch-card { background: #101c2a; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+  .human-score-list section, .pitch-outline section { border-color: rgba(255,255,255,.08); }
+  .human-score-list span { color: #7f8da0; }
+  .human-score-list b { color: #f18a70; }
+  .score-track { background: #253142; }
+  .score-track i { background: #45b58b; }
+  .score-note, .question-drawer { border-color: rgba(255,255,255,.1); background: rgba(255,255,255,.025); }
+  .score-note p, .question-drawer p { color: #94a1b1; }
+  .roadmap-list section > span { background: #ef6a4c; color: #17110f; }
+  .roadmap-list section:not(:last-child) > span::after { background: #2b3a4c; }
+  .pitch-card p { color: #e7edf4; }
+  .pitch-card button { background: #ef6a4c; color: #17110f; }
+  .mobile-bottom-nav { background: #111d2b; border-color: rgba(255,255,255,.09); }
+  .mobile-bottom-nav button { color: #728195; }
+  .mobile-bottom-nav button.active { background: #ef6a4c; color: #17110f; }
+}
+
 @media print {
   nav,
   textarea,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Navbar from "./components/Navbar";
 import InnovationReport from "./components/InnovationReport";
 import ProjectDashboard from "./components/ProjectDashboard";
@@ -70,7 +70,7 @@ const DEMO_RESULT = {
 
 function App() {
   const reportRef = useRef(null);
-  const [idea, setIdea] = useState(() => localStorage.getItem("inventai-draft") || "");
+  const [idea, setIdea] = useState("");
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -78,7 +78,7 @@ function App() {
   const [demoMode, setDemoMode] = useState(false);
   const [provider, setProvider] = useState("gemini");
   const [compareMode, setCompareMode] = useState(false);
-  const [groundedMode, setGroundedMode] = useState(true);
+  const [groundedMode, setGroundedMode] = useState(false);
   const [compareResults, setCompareResults] = useState(null);
   const [research, setResearch] = useState(null);
   const [researchLoading, setResearchLoading] = useState(false);
@@ -92,8 +92,6 @@ function App() {
     return { score: checks.filter(Boolean).length * 25, missing: ["more detail", "target user", "problem", "measurable outcome"].filter((_, i) => !checks[i]) };
   }, [idea]);
   const riskColor = result?.patent_risk?.toLowerCase() === "low" ? "text-emerald-400" : result?.patent_risk?.toLowerCase() === "medium" ? "text-amber-400" : "text-rose-400";
-
-  useEffect(() => { localStorage.setItem("inventai-draft", idea); }, [idea]);
 
   const loadResearch = async (sourceIdea) => {
     setResearchLoading(true); setResearchError(""); setResearch(null); publishResearch(null);
@@ -194,7 +192,7 @@ function App() {
       {showResearchPanel && !result && <section id="research-evidence" className="px-5 pb-24"><div className="mx-auto max-w-6xl"><ResearchEvidence evidence={research} loading={researchLoading} error={researchError} onRetry={()=>loadResearch(idea.trim())} /></div></section>}
       {result && !demoMode && <section id="research-evidence" className="px-5 pb-24"><div className="mx-auto max-w-6xl"><ResearchEvidence evidence={research} loading={researchLoading} error={researchError} onRetry={()=>loadResearch(idea.trim())} /></div></section>}
       {savedProjects.length > 0 && <ProjectDashboard projects={savedProjects} onOpen={(x)=>{setIdea(x.idea);setResult(x.result);setCompareResults(null);setResearch(null);setResearchError("");window.scrollTo({top:0,behavior:"smooth"});}} onDelete={deleteProject} onUpdate={updateProject}/>} 
-      {result && <MobileDecisionView idea={idea} result={result} projects={savedProjects} onEdit={()=>{setResult(null);setCompareResults(null);window.scrollTo({top:0,behavior:"smooth"});}} />}
+      {result && <MobileDecisionView idea={idea} result={result} projects={savedProjects} onEdit={()=>{setIdea("");setResult(null);setCompareResults(null);setResearch(null);localStorage.removeItem("inventai-draft");window.scrollTo({top:0,behavior:"smooth"});}} />}
     </main>
   </div>;
 }
