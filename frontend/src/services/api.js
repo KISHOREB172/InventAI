@@ -1,8 +1,33 @@
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
 
 const API_URL = import.meta.env.VITE_API_URL || (Capacitor.isNativePlatform() ? "http://10.0.2.2:8000" : "http://127.0.0.1:8000");
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function apiRequest(path, { method = "GET", body, signal } = {}) {
+  if (Capacitor.isNativePlatform()) {
+    const response = await CapacitorHttp.request({
+      url: `${API_URL}${path}`,
+      method,
+      headers: body ? { "Content-Type": "application/json" } : {},
+      data: body ? JSON.parse(body) : undefined,
+      connectTimeout: 60000,
+      readTimeout: 180000,
+    });
+    return {
+      ok: response.status >= 200 && response.status < 300,
+      status: response.status,
+      json: async () => typeof response.data === "string" ? JSON.parse(response.data) : response.data,
+    };
+  }
+  return fetch(`${API_URL}${path}`, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body,
+    signal,
+    cache: method === "GET" ? "no-store" : undefined,
+  });
+}
 
 async function wakeAnalysisEngine(signal) {
   // A free Render instance may briefly refuse/reset mobile connections while waking.
@@ -10,7 +35,7 @@ async function wakeAnalysisEngine(signal) {
   let lastError;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const response = await fetch(`${API_URL}/health`, { signal, cache: "no-store" });
+      const response = await apiRequest("/health", { signal });
       if (response.ok) return;
       lastError = new Error(`Health check returned ${response.status}.`);
     } catch (error) {
@@ -30,11 +55,8 @@ export async function analyzeIdea(idea, provider = "gemini", mode = "analysis") 
   let response;
   try {
     await wakeAnalysisEngine(controller.signal);
-    response = await fetch(`${API_URL}/analyze`, {
+    response = await apiRequest("/analyze", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
       body: JSON.stringify({ idea, provider, improve: mode === "improve", novelty: mode === "novelty", breakthrough: mode === "breakthrough" }),
       signal: controller.signal,
     });
@@ -64,9 +86,8 @@ export async function researchIdea(idea) {
   const timeout = setTimeout(() => controller.abort(), 120000);
   try {
     await wakeAnalysisEngine(controller.signal);
-    const response = await fetch(`${API_URL}/research`, {
+    const response = await apiRequest("/research", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idea }),
       signal: controller.signal,
     });
