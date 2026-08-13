@@ -23,7 +23,7 @@ export default function MobileDecisionView({ result, onEdit }) {
   return <section className="mobile-decision">
     <header className="mobile-appbar">
       <button type="button" onClick={onEdit} aria-label="Edit idea">‹</button>
-      <div><strong>Idea review</strong><span>Ready to discuss</span></div>
+      <div><strong>Idea review</strong><span>{result.offline ? "On-device · works offline" : "Online analysis"}</span></div>
       <button type="button" onClick={share} aria-label="Share result">↗</button>
     </header>
 
