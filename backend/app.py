@@ -328,8 +328,8 @@ def analyze_gemini(idea: str, improve: bool, novelty: bool = False, breakthrough
         raise HTTPException(status_code=503, detail="Gemini is not configured. Add GEMINI_API_KEY.")
     last_error = None
     models = [
-        os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
-        "gemini-flash-latest",
+        os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
+        "gemini-3.6-flash",
         "gemini-3.1-flash-lite",
     ]
     for model in models:
@@ -337,7 +337,7 @@ def analyze_gemini(idea: str, improve: bool, novelty: bool = False, breakthrough
             response = gemini_client.models.generate_content(
                 model=model,
                 contents=build_prompt(idea, improve, novelty, breakthrough),
-                config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=InnovationAnalysis, temperature=0.2),
+                config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=InnovationAnalysis),
             )
             parsed = response.parsed
             result = parsed if isinstance(parsed, InnovationAnalysis) else InnovationAnalysis.model_validate(parsed)
