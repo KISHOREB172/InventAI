@@ -161,7 +161,7 @@ function App() {
   return <div className="min-h-screen bg-[#050b14] text-slate-100 selection:bg-cyan-400/30">
     <Navbar />
     <main>
-      <section className="relative overflow-hidden px-5 pb-20 pt-32">
+      <section className="home-hero relative overflow-hidden px-5 pb-20 pt-32">
         <div className="hero-glow" />
         <div className="relative mx-auto max-w-6xl">
           <div className="mx-auto max-w-3xl text-center">
@@ -169,7 +169,7 @@ function App() {
             <h1 className="text-balance text-5xl font-black leading-[1.02] tracking-tight sm:text-7xl">Turn a raw idea into a <span className="gradient-text">winning plan.</span></h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-400">Describe your idea in plain language. InventAI checks whether it is useful, different, buildable, and competition-ready—then tells you exactly what to do next.</p>
           </div>
-          <div className="mx-auto mt-12 max-w-4xl rounded-3xl border border-white/10 bg-slate-900/70 p-3 shadow-2xl shadow-cyan-950/30 backdrop-blur md:p-5">
+          <div className="idea-composer mx-auto mt-12 max-w-4xl rounded-3xl border border-white/10 bg-slate-900/70 p-3 shadow-2xl shadow-cyan-950/30 backdrop-blur md:p-5">
             <textarea aria-label="Innovation idea" value={idea} onChange={(e) => setIdea(e.target.value)} onKeyDown={(e) => e.ctrlKey && e.key === "Enter" && runAnalysis()} rows={6} placeholder="Describe the problem, who has it, your solution, and what makes it different..." className="w-full resize-none rounded-2xl border border-white/10 bg-[#07111f] p-5 text-base leading-7 outline-none placeholder:text-slate-600 focus:border-cyan-400/50" />
             <div className="mt-3 flex flex-wrap items-center gap-2 px-1"><span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Idea starters</span>{IDEA_STARTERS.map(([label, template]) => <button key={label} type="button" onClick={() => setIdea(template)} className="rounded-full border border-white/8 bg-white/[.025] px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-cyan-200">{label}</button>)}<span className={`ml-auto text-xs font-bold ${ideaReadiness.score >= 75 ? "text-emerald-300" : ideaReadiness.score >= 50 ? "text-amber-300" : "text-slate-500"}`}>Brief readiness {ideaReadiness.score}%</span></div>
             {ideaReadiness.missing.length > 0 && idea.length > 0 && <p className="px-1 pt-2 text-xs text-slate-600">Strengthen it with: {ideaReadiness.missing.join(", ")}.</p>}
