@@ -2,6 +2,26 @@ import { Capacitor } from "@capacitor/core";
 
 const API_URL = import.meta.env.VITE_API_URL || (Capacitor.isNativePlatform() ? "http://10.0.2.2:8000" : "http://127.0.0.1:8000");
 
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function wakeAnalysisEngine(signal) {
+  // A free Render instance may briefly refuse/reset mobile connections while waking.
+  // Health checks are safe to retry and make the following model request reliable.
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch(`${API_URL}/health`, { signal, cache: "no-store" });
+      if (response.ok) return;
+      lastError = new Error(`Health check returned ${response.status}.`);
+    } catch (error) {
+      if (error.name === "AbortError") throw error;
+      lastError = error;
+    }
+    await wait(2000 * (attempt + 1));
+  }
+  throw lastError || new Error("The analysis engine is unavailable.");
+}
+
 export async function analyzeIdea(idea, provider = "gemini", mode = "analysis") {
   const controller = new AbortController();
   // Render's free tier can need 50+ seconds to wake before the model request begins.
@@ -9,6 +29,7 @@ export async function analyzeIdea(idea, provider = "gemini", mode = "analysis") 
   const timeout = setTimeout(() => controller.abort(), 180000);
   let response;
   try {
+    await wakeAnalysisEngine(controller.signal);
     response = await fetch(`${API_URL}/analyze`, {
     method: "POST",
     headers: {
@@ -18,7 +39,7 @@ export async function analyzeIdea(idea, provider = "gemini", mode = "analysis") 
       signal: controller.signal,
     });
   } catch (error) {
-    throw new Error(error.name === "AbortError" ? "Analysis took longer than 3 minutes. Please retry; the server should now be awake." : "Cannot reach the analysis engine.", { cause: error });
+    throw new Error(error.name === "AbortError" ? "Analysis took longer than 3 minutes. Please retry; the server should now be awake." : "Cannot reach the analysis engine after 3 attempts. Check internet access and try again.", { cause: error });
   } finally {
     clearTimeout(timeout);
   }
@@ -42,6 +63,7 @@ export async function researchIdea(idea) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 120000);
   try {
+    await wakeAnalysisEngine(controller.signal);
     const response = await fetch(`${API_URL}/research`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
