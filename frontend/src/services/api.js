@@ -1,144 +1,105 @@
-import { Capacitor, CapacitorHttp } from "@capacitor/core";
+import { Capacitor } from "@capacitor/core";
 
-const API_URL = import.meta.env.VITE_API_URL || (Capacitor.isNativePlatform() ? "http://10.0.2.2:8000" : "http://127.0.0.1:8000");
+const DEFAULT_NATIVE_API_URL = "https://inventai-api-scx1.onrender.com";
+const API_URL = (import.meta.env.VITE_API_URL || (Capacitor.isNativePlatform() ? DEFAULT_NATIVE_API_URL : "http://127.0.0.1:8000")).replace(/\/$/, "");
+const REQUEST_TIMEOUT_MS = 60000;
 
-const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-
-function onDeviceAnalysis(idea) {
-  const clean = idea.replace(/\s+/g, " ").trim();
-  const words = clean.split(" ");
-  const title = words.slice(0, 7).join(" ").replace(/^(an?|the|my)\s+/i, "") || "New idea";
-  const detail = Math.min(15, Math.floor(clean.length / 45));
-  const scores = { innovation: 64 + detail, novelty: 58 + detail, feasibility: 70 + Math.floor(detail / 2), market: 62 + detail };
-  return {
-    title: title.charAt(0).toUpperCase() + title.slice(1), provider: "On-device", offline: true,
-    one_liner: clean, verdict: detail >= 8 ? "PROMISING" : "VALIDATE", patent_risk: "Medium", confidence_score: 45 + detail,
-    innovation_score: scores.innovation, novelty_score: scores.novelty, feasibility_score: scores.feasibility, market_score: scores.market,
-    score_explanations: { innovation: "The concept has a clear opportunity, pending user evidence.", novelty: "Differentiation must be tested against current alternatives.", feasibility: "A narrow prototype appears achievable.", market: "Demand is plausible but not yet demonstrated." },
-    problem: `The idea addresses the situation described by the innovator: ${clean}`,
-    users: "Start with one sharply defined user group that experiences this problem frequently.",
-    technology: "Use the smallest reliable stack that can demonstrate the core outcome.",
-    differentiator: "Focus on one measurable improvement that current alternatives do not deliver well.",
-    business_model: "Validate willingness to use and pay before selecting a revenue model.",
-    market_potential: "Potential depends on problem frequency, urgency, and switching behaviour.",
-    prototype: "Build only the core user journey and test it with five target users.", estimated_cost: "Keep the first evidence prototype below ₹10,000 where possible.",
-    next_experiment: "Interview five target users, then test a clickable or manual prototype with at least three of them.",
-    strengths: ["The concept can be tested without building the full product", "A focused first user group can produce useful evidence", "The core promise can be measured"],
-    risks: ["The target user and urgent problem may still be too broad", "Existing alternatives may already feel good enough", "Interest may not translate into repeated use or payment"],
-    critical_assumptions: ["The problem occurs often enough to matter", "Users will change their current behaviour", "The promised outcome can be delivered affordably"],
-    validation_questions: ["Tell me about the last time this problem occurred.", "What do you use or do today to handle it?", "What would make you try a different solution?"],
-    success_metrics: ["4 of 5 users confirm the problem occurred in the last month", "3 of 5 users complete the prototype journey without help", "At least 2 users commit to a follow-up pilot"],
-    recommended_actions: ["Choose one primary user", "Document the current alternative", "Run the smallest behaviour test"],
-    improvement_suggestions: ["Add a measurable outcome", "Explain why the current solution fails", "Reduce the first version to one job"],
-    roadmap: [
-      { phase: "Understand", duration: "Days 1–2", outcome: "Five problem interviews and a ranked pain list" },
-      { phase: "Prototype", duration: "Days 3–5", outcome: "One testable core journey" },
-      { phase: "Prove", duration: "Week 2", outcome: "Observed usage and a go, change, or stop decision" },
-    ],
-    architecture_blocks: [], required_hardware: [], competitors: [], market_gaps: [],
-  };
-}
-
-async function apiRequest(path, { method = "GET", body, signal } = {}) {
-  if (Capacitor.isNativePlatform()) {
-    const response = await CapacitorHttp.request({
-      url: `${API_URL}${path}`,
-      method,
-      headers: body ? { "Content-Type": "application/json" } : {},
-      data: body ? JSON.parse(body) : undefined,
-      connectTimeout: 15000,
-      readTimeout: 30000,
-    });
-    return {
-      ok: response.status >= 200 && response.status < 300,
-      status: response.status,
-      json: async () => typeof response.data === "string" ? JSON.parse(response.data) : response.data,
-    };
+export class ApiError extends Error {
+  constructor(message, { code = "UNKNOWN", status = 0, retryable = true, cause } = {}) {
+    super(message, { cause }); this.name = "ApiError"; this.code = code; this.status = status; this.retryable = retryable;
   }
-  return fetch(`${API_URL}${path}`, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : {},
-    body,
-    signal,
-    cache: method === "GET" ? "no-store" : undefined,
-  });
 }
 
-async function wakeAnalysisEngine(signal) {
-  // A free Render instance may briefly refuse/reset mobile connections while waking.
-  // Health checks are safe to retry and make the following model request reliable.
-  let lastError;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      const response = await apiRequest("/health", { signal });
-      if (response.ok) return;
-      lastError = new Error(`Health check returned ${response.status}.`);
-    } catch (error) {
-      if (error.name === "AbortError") throw error;
-      lastError = error;
-    }
-    await wait(2000 * (attempt + 1));
+const friendlyMessage = (status, detail) => {
+  const readableDetail = typeof detail === "string" ? detail : "";
+  if (status === 400 || status === 422) return readableDetail || "The idea could not be reviewed. Check the brief and try again.";
+  if (status === 429) return "Too many reviews were requested. Wait one minute, then retry.";
+  if (status === 401 || status === 403) return "This app is not authorized to use the analysis service.";
+  if (status >= 500) return readableDetail || "The analysis service is temporarily unavailable. Please retry shortly.";
+  return readableDetail || "The request could not be completed.";
+};
+
+const validateAnalysis = (data) => {
+  const scoreKeys = ["innovation_score", "novelty_score", "feasibility_score", "market_score"];
+  const validScores = scoreKeys.every((key) => Number.isFinite(data?.[key]) && data[key] >= 0 && data[key] <= 100);
+  if (!data || typeof data.title !== "string" || typeof data.one_liner !== "string" || !validScores || !Array.isArray(data.roadmap) || !Array.isArray(data.risks)) {
+    throw new ApiError("The analysis service returned an incomplete result. Please retry.", { code: "INVALID_RESPONSE" });
   }
-  throw lastError || new Error("The analysis engine is unavailable.");
-}
+  return data;
+};
 
-export async function analyzeIdea(idea, provider = "gemini", mode = "analysis") {
+async function fetchRequest(path, options) {
+  if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
   const controller = new AbortController();
-  // Render's free tier can need 50+ seconds to wake before the model request begins.
-  // Keep the client alive long enough for both the cold start and structured response.
-  const timeout = setTimeout(() => controller.abort(), 180000);
-  let response;
+  let timedOut = false;
+  const relayAbort = () => controller.abort();
+  options.signal?.addEventListener("abort", relayAbort, { once: true });
+  const timer = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
   try {
-    if (!Capacitor.isNativePlatform()) await wakeAnalysisEngine(controller.signal);
-    response = await apiRequest("/analyze", {
-    method: "POST",
-      body: JSON.stringify({ idea, provider, improve: mode === "improve", novelty: mode === "novelty", breakthrough: mode === "breakthrough" }),
+    return await fetch(`${API_URL}${path}`, {
+      method: options.method || "GET",
+      headers: options.body ? { "Content-Type": "application/json" } : {},
+      body: options.body,
       signal: controller.signal,
+      cache: "no-store",
     });
   } catch (error) {
-    if (Capacitor.isNativePlatform()) return onDeviceAnalysis(idea);
-    throw new Error(error.name === "AbortError" ? "Analysis took longer than 3 minutes. Please retry; the server should now be awake." : "Cannot reach the analysis engine after 3 attempts. Check internet access and try again.", { cause: error });
+    if (timedOut) {
+      throw new ApiError("The analysis service did not respond within 60 seconds. Retry once the service is awake.", { code: "TIMEOUT" });
+    }
+    if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    throw error;
   } finally {
-    clearTimeout(timeout);
+    window.clearTimeout(timer);
+    options.signal?.removeEventListener("abort", relayAbort);
   }
-
-  if (!response.ok) {
-    let message = "The analysis engine could not complete this request.";
-    try { const body = await response.json(); message = body.detail || body.error || message; } catch { /* keep fallback */ }
-    if (Capacitor.isNativePlatform()) return onDeviceAnalysis(idea);
-    throw new Error(message);
-  }
-
-  const data = await response.json();
-
-  if (data.error) {
-    if (Capacitor.isNativePlatform()) return onDeviceAnalysis(idea);
-    throw new Error(data.error);
-  }
-  try { localStorage.setItem("inventai-last-analysis", JSON.stringify(data)); } catch { /* optional cache */ }
-  return data;
 }
 
-export async function researchIdea(idea) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 120000);
+async function request(path, options = {}) {
   try {
-    await wakeAnalysisEngine(controller.signal);
-    const response = await apiRequest("/research", {
-      method: "POST",
-      body: JSON.stringify({ idea }),
-      signal: controller.signal,
-    });
+    const response = await fetchRequest(path, options);
     if (!response.ok) {
-      let message = "Evidence search could not be completed.";
-      try { const body = await response.json(); message = body.detail || message; } catch { /* keep fallback */ }
-      throw new Error(message);
+      let detail = ""; try { const body = await response.json(); detail = body?.detail || body?.error || ""; } catch { /* no response body */ }
+      throw new ApiError(friendlyMessage(response.status, detail), { code: `HTTP_${response.status}`, status: response.status, retryable: response.status === 429 || response.status >= 500 });
     }
     return await response.json();
   } catch (error) {
-    if (error.name === "AbortError") throw new Error("Evidence search took longer than 2 minutes. Please retry; the server should now be awake.", { cause: error });
-    throw error;
+    if (error.name === "AbortError") throw error;
+    if (error instanceof ApiError) throw error;
+    throw new ApiError("Cannot connect to the analysis service. Check your internet connection and retry.", { code: "NETWORK", cause: error });
+  }
+}
+
+export async function analyzeIdea(idea, provider = "gemini", mode = "analysis", signal) {
+  const data = await request("/analyze", { method: "POST", body: JSON.stringify({ idea, provider, improve: mode === "improve", novelty: mode === "novelty", breakthrough: mode === "breakthrough" }), signal });
+  return validateAnalysis(data);
+}
+
+export async function researchIdea(idea, signal) {
+  const data = await request("/research", { method: "POST", body: JSON.stringify({ idea }), signal });
+  if (!Array.isArray(data?.papers) || !Array.isArray(data?.existing_projects)) throw new ApiError("The evidence service returned an incomplete result.", { code: "INVALID_RESPONSE" });
+  const isSafeUrl = (value) => {
+    try { return ["http:", "https:"].includes(new URL(value).protocol); } catch { return false; }
+  };
+  return {
+    ...data,
+    papers: data.papers.filter((item) => isSafeUrl(item?.url)),
+    existing_projects: data.existing_projects.filter((item) => isSafeUrl(item?.url)),
+  };
+}
+
+export async function warmAnalysisService() {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(`${API_URL}/health`, { signal: controller.signal, cache: "no-store" });
+    return response.ok;
+  } catch {
+    return false;
   } finally {
-    clearTimeout(timeout);
+    window.clearTimeout(timer);
   }
 }

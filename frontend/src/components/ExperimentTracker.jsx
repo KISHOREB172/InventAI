@@ -10,7 +10,10 @@ function ExperimentTracker({ idea, result, onConfidenceChange }) {
   const failed = metrics.filter((_, i) => record.metrics?.[i] === "failed").length;
   const adjusted = Math.max(0, Math.min(100, (result.confidence_score ?? 50) + passed * 8 - failed * 6));
 
-  useEffect(() => { localStorage.setItem(storageKey, JSON.stringify(record)); onConfidenceChange?.(adjusted); }, [record, storageKey, adjusted, onConfidenceChange]);
+  useEffect(() => {
+    try { localStorage.setItem(storageKey, JSON.stringify(record)); } catch { /* Storage can be unavailable or full. */ }
+    onConfidenceChange?.(adjusted);
+  }, [record, storageKey, adjusted, onConfidenceChange]);
   const setMetric = (index, value) => setRecord((current) => ({ ...current, metrics: { ...current.metrics, [index]: value }, updatedAt: new Date().toISOString() }));
 
   return <section className="mt-12 rounded-3xl border border-emerald-400/20 bg-gradient-to-br from-emerald-400/[.07] to-cyan-400/[.03] p-6 md:p-8">

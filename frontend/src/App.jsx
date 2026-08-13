@@ -1,78 +1,69 @@
-import { useMemo, useRef, useState } from "react";
-import Navbar from "./components/Navbar";
-import InnovationReport from "./components/InnovationReport";
-import ProjectDashboard from "./components/ProjectDashboard";
-import ModelComparison from "./components/ModelComparison";
-import ResearchEvidence from "./components/ResearchEvidence";
-import HackathonStudio from "./components/HackathonStudio";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
+import AnalysisProgress from "./components/AnalysisProgress";
+import IdeaWorkbench from "./components/IdeaWorkbench";
 import MobileDecisionView from "./components/MobileDecisionView";
-import { analyzeIdea, researchIdea } from "./services/api";
-import { publishResearch } from "./services/researchStore";
+import Navbar from "./components/Navbar";
+import RecentProjects from "./components/RecentProjects";
+import { useMediaQuery } from "./hooks/useMediaQuery";
+import { analyzeIdea, researchIdea, warmAnalysisService } from "./services/api";
+import { clearAllAppData, clearTransientAppData, loadProjects, saveProjects } from "./utils/storage";
 
-const EXAMPLE = "A low-cost smart irrigation kit for small farms that combines soil sensors, hyperlocal weather data, and explainable AI to automatically reduce water use while working offline.";
-const IDEA_STARTERS = [
-  ["Product", "A [product] for [specific user] who struggles with [problem]. It works by [mechanism], unlike [alternative], and succeeds if [measurable outcome]."],
-  ["Climate", "A climate solution for [community or industry] that reduces [waste/emissions/resource use] by [mechanism], with a pilot target of [number]."],
-  ["AI workflow", "An AI-assisted workflow for [role] that replaces [painful task], uses [unique data or process], keeps humans in control by [safeguard], and saves [time/cost]."],
-];
+const DesktopWorkspace = lazy(() => import("./components/DesktopWorkspace"));
+const ResearchEvidence = lazy(() => import("./components/ResearchEvidence"));
 
-const DEMO_RESULT = {
-  title: "TerraPulse Offline Irrigation",
-  one_liner: "An offline-first irrigation copilot that turns field conditions into explainable watering decisions.",
+const EXAMPLE_IDEA = "A low-cost smart irrigation kit for small farms that combines soil sensors, local weather data, and clear recommendations to reduce water use while working offline.";
+const EXAMPLE_RESULT = {
+  title: "TerraPulse Field Guide",
+  one_liner: "An offline irrigation guide that turns field conditions into clear, measurable watering decisions.",
   verdict: "PROMISING",
-  innovation_score: 86, novelty_score: 78, feasibility_score: 84, market_score: 88,
-  confidence_score: 82,
+  provider: "Example",
+  innovation_score: 84,
+  novelty_score: 76,
+  feasibility_score: 82,
+  market_score: 87,
+  confidence_score: 79,
   patent_risk: "Medium",
-  problem: "Small farms overwater because existing precision-agriculture systems are costly, connectivity-dependent, and difficult to trust.",
-  technology: "ESP32 sensor nodes, capacitive soil probes, LoRa, a solar gateway, TinyML rules, and a lightweight mobile PWA.",
-  users: "Smallholder farmers, cooperatives, agronomists, and rural irrigation programs.",
-  prototype: "Instrument one plot with three sensor nodes and a valve controller; compare water use and crop health against a control plot for four weeks.",
-  estimated_cost: "$350–$700 for a field-ready pilot",
-  market_potential: "A strong wedge into climate-resilient agriculture, with recurring revenue from agronomy insights and fleet monitoring.",
-  business_model: "Starter kit sale plus a low-cost seasonal analytics subscription; cooperatives can sponsor shared gateways.",
-  differentiator: "Offline operation plus a visible reason for every watering recommendation creates a defensible trust advantage.",
-  next_experiment: "Recruit five farmers and prove at least 20% water savings without reducing crop health.",
-  strengths: ["Clear, urgent customer pain", "Measurable climate impact", "Prototype uses accessible hardware"],
-  risks: ["Sensor calibration across soil types", "Farmers may resist automated valve control", "Patent landscape needs professional search"],
-  critical_assumptions: ["Farmers will trust explainable recommendations", "The kit can save at least 20% water", "Offline operation is a purchase driver"],
-  validation_questions: ["How do you decide when and how much to irrigate today?", "What caused your most expensive irrigation mistake?", "What proof would you need before allowing automatic valve control?"],
-  success_metrics: ["At least 20% lower water use", "No more than 5% reduction in crop health", "4 of 5 pilot farmers request a second-season trial"],
-  judge_readiness: {
-    weighted_total: 84,
-    problem_importance: { score: 92, evidence: "Water scarcity and irrigation costs create urgent, measurable pain for small farms.", gap: "The submission does not yet quantify the problem for one target region.", next_action: "Add one regional water-cost statistic and two farmer interview quotes." },
-    novelty: { score: 78, evidence: "Offline explainability and low-cost cooperative deployment differentiate it from cloud-first farm platforms.", gap: "Sensors plus irrigation automation already exist.", next_action: "Demonstrate the unique trust loop: recommendation, explanation, farmer override, and learning." },
-    technical_innovation: { score: 86, evidence: "Edge inference, sensor fusion, LoRa networking, and explainable control form a meaningful technical system.", gap: "The learning and explanation mechanism needs a concrete architecture.", next_action: "Show one live sensor reading passing through the edge decision model into an explained valve action." },
-    working_prototype: { score: 82, evidence: "Accessible components support a credible end-to-end field demonstration.", gap: "Field reliability and calibration remain unproven.", next_action: "Prepare a tabletop soil-moisture demo with a recorded field-trial fallback." },
-    impact_scalability: { score: 84, evidence: "Reusable sensor nodes and shared gateways can scale through cooperatives without continuous connectivity.", gap: "Unit economics at 1,000 farms are not yet shown.", next_action: "Present cost per farm at 10, 100, and 1,000 deployments." },
-    presentation: { score: 80, evidence: "The before-and-after water story is visual and easy to demonstrate.", gap: "The pitch risks spending too long on hardware details.", next_action: "Lead with one farmer story, show one automatic decision, and close with measured water savings." },
-    demo_flow: ["Show the dry and wet soil sensor readings changing live.", "Display the edge gateway combining soil and weather inputs.", "Trigger a watering recommendation with a plain-language explanation.", "Approve the action and operate the demonstration valve.", "Reveal the pilot dashboard with water saved and the next validation milestone."],
-    pitch_outline: ["0:00–0:35 — Open with the cost of overwatering for one small farmer.", "0:35–1:10 — Explain why cloud-first precision agriculture fails in low-connectivity farms.", "1:10–2:35 — Run the sensor-to-explanation-to-valve live demo.", "2:35–3:25 — Show differentiation, pilot evidence, and scalable cooperative economics.", "3:25–4:00 — Close with the 20% water-saving target and the next field trial."],
-    likely_judge_questions: ["Why is this better than a timer? The system adapts to soil and weather while explaining every decision.", "What happens without internet? All critical sensing and control run locally; connectivity is only needed for optional synchronization.", "How will you validate impact? Compare water use and crop-health indicators against a control plot for four weeks."],
+  score_explanations: {
+    innovation: "A credible combination of offline operation and explainable field decisions.",
+    novelty: "Irrigation automation exists, but trust and offline use create a useful wedge.",
+    feasibility: "The first field prototype can use accessible hardware and simple rules.",
+    market: "Water cost and reliability are urgent, measurable problems for small farms.",
   },
+  problem: "Small farms often overwater because precision-agriculture systems are expensive, connectivity-dependent, and difficult to trust.",
+  technology: "Soil sensors, a low-power field controller, local weather inputs, offline decision rules, and a simple mobile interface.",
+  users: "Smallholder farmers and agricultural cooperatives.",
+  prototype: "Instrument one plot and compare water use against a control plot for four weeks.",
+  estimated_cost: "INR 30,000-60,000 for a field pilot.",
+  market_potential: "A focused entry point into practical, climate-resilient farm operations.",
+  business_model: "Starter kit plus seasonal support for cooperatives.",
+  differentiator: "Offline operation and a clear explanation for every recommendation.",
+  next_experiment: "Recruit five farmers and prove at least 20% lower water use without reducing crop health.",
+  strengths: ["Urgent, measurable problem", "Clear first user group", "Prototype uses accessible components"],
+  risks: ["Calibration varies by soil type", "Farmers may prefer manual control", "The trust advantage is not yet proven"],
+  recommended_actions: ["Interview five farmers", "Measure current water use", "Build one sensor-to-recommendation journey"],
+  critical_assumptions: ["Farmers value offline operation", "The kit saves at least 20% water", "Explanations improve trust"],
+  validation_questions: ["How do you decide when to irrigate today?", "What caused your last costly watering mistake?", "What evidence would make you trust a recommendation?"],
+  success_metrics: ["20% lower water use", "No more than 5% crop-health decline", "4 of 5 farmers request another trial"],
+  improvement_suggestions: ["Focus on one crop", "Keep manual override visible", "Make water savings the primary proof"],
+  improved_idea: EXAMPLE_IDEA,
+  competitors: [],
+  market_gaps: ["Reliable offline operation", "Low-cost cooperative deployment", "Visible decision explanations"],
   roadmap: [
-    { phase: "Validate", duration: "Week 1", outcome: "5 farmer interviews and baseline water data" },
-    { phase: "Build", duration: "Weeks 2–3", outcome: "Working sensor-to-valve prototype" },
-    { phase: "Prove", duration: "Weeks 4–6", outcome: "Field trial with quantified savings" }
+    { phase: "Understand", duration: "Week 1", outcome: "Five farmer interviews and baseline water data", components: [], skills: [], estimated_cost: "INR 0-2,000" },
+    { phase: "Prototype", duration: "Weeks 2-3", outcome: "Working sensor-to-recommendation prototype", components: [], skills: [], estimated_cost: "INR 15,000-30,000" },
+    { phase: "Prove", duration: "Weeks 4-6", outcome: "Field trial with measured savings", components: [], skills: [], estimated_cost: "INR 15,000-30,000" },
   ],
-  architecture_blocks: [
-    { name: "Field Sensors", description: "Capture soil moisture and local weather conditions" },
-    { name: "Edge Gateway", description: "Fuse readings and run offline decision logic" },
-    { name: "Smart Control", description: "Operate valves and explain each watering action" }
-  ],
-  required_hardware: [
-    { name: "ESP32 controller", quantity: 3, purpose: "Read sensors and transmit field data" },
-    { name: "Capacitive soil sensor", quantity: 3, purpose: "Measure soil moisture without rapid corrosion" },
-    { name: "LoRa modules", quantity: 4, purpose: "Long-range, low-power field communication" },
-    { name: "12V solenoid valve", quantity: 1, purpose: "Control irrigation flow" },
-    { name: "Solar power kit", quantity: 1, purpose: "Power the offline field gateway" }
-  ]
+  architecture_blocks: [],
+  required_hardware: [],
+  analysis_mode: "analysis",
 };
 
 function App() {
-  const reportRef = useRef(null);
+  const isNarrowScreen = useMediaQuery("(max-width: 700px)");
+  const isMobile = Capacitor.isNativePlatform() || isNarrowScreen;
   const [idea, setIdea] = useState("");
   const [loading, setLoading] = useState(false);
-  const [pdfLoading, setPdfLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [demoMode, setDemoMode] = useState(false);
@@ -84,116 +75,323 @@ function App() {
   const [researchLoading, setResearchLoading] = useState(false);
   const [researchError, setResearchError] = useState("");
   const [showResearchPanel, setShowResearchPanel] = useState(false);
-  const [savedProjects, setSavedProjects] = useState(() => { try { return JSON.parse(localStorage.getItem("inventai-projects")) || []; } catch { return []; } });
-  const wordCount = useMemo(() => idea.trim() ? idea.trim().split(/\s+/).length : 0, [idea]);
-  const ideaReadiness = useMemo(() => {
-    const text = idea.toLowerCase();
-    const checks = [idea.trim().length >= 80, /user|customer|farmer|student|team|business|patient|worker/.test(text), /problem|struggle|waste|cost|slow|difficult|risk/.test(text), /measure|reduce|increase|save|target|%|faster|cheaper/.test(text)];
-    return { score: checks.filter(Boolean).length * 25, missing: ["more detail", "target user", "problem", "measurable outcome"].filter((_, i) => !checks[i]) };
-  }, [idea]);
-  const riskColor = result?.patent_risk?.toLowerCase() === "low" ? "text-emerald-400" : result?.patent_risk?.toLowerCase() === "medium" ? "text-amber-400" : "text-rose-400";
+  const [savedProjects, setSavedProjects] = useState(loadProjects);
+  const [notice, setNotice] = useState("");
+  const analysisController = useRef(null);
+  const researchController = useRef(null);
+  const analysisSequence = useRef(0);
+  const researchSequence = useRef(0);
+  const noticeTimer = useRef(null);
 
-  const loadResearch = async (sourceIdea) => {
-    setResearchLoading(true); setResearchError(""); setResearch(null); publishResearch(null);
-    try { const evidence = await researchIdea(sourceIdea); setResearch(evidence); publishResearch(evidence); }
-    catch (err) { setResearchError(err.message); }
-    finally { setResearchLoading(false); }
+  const readiness = useMemo(() => {
+    const text = idea.toLowerCase();
+    const checks = [
+      idea.trim().length >= 80,
+      /user|customer|farmer|student|team|business|patient|worker|nurse|doctor|teacher|parent|driver|owner|manager|employee|resident/.test(text),
+      /problem|struggle|waste|cost|slow|difficult|risk|lose|missing|delay|error|pain|manual|burden/.test(text),
+      /measure|reduce|increase|save|target|%|faster|cheaper/.test(text),
+    ];
+    const score = checks.filter(Boolean).length * 25;
+    return {
+      score,
+      tone: score >= 75 ? "good" : score >= 50 ? "medium" : "low",
+      missing: ["more detail", "target user", "current problem", "measurable outcome"].filter((_, index) => !checks[index]),
+    };
+  }, [idea]);
+
+  const showNotice = useCallback((message) => {
+    window.clearTimeout(noticeTimer.current);
+    setNotice(message);
+    noticeTimer.current = window.setTimeout(() => setNotice(""), 2600);
+  }, []);
+
+  const resetEvidence = useCallback(() => {
+    researchSequence.current += 1;
+    researchController.current?.abort();
+    researchController.current = null;
+    setResearch(null);
+    setResearchLoading(false);
+    setResearchError("");
+  }, []);
+
+  const startNewIdea = useCallback(() => {
+    analysisSequence.current += 1;
+    analysisController.current?.abort();
+    analysisController.current = null;
+    setLoading(false);
+    setIdea("");
+    setResult(null);
+    setCompareResults(null);
+    setDemoMode(false);
+    setError("");
+    setShowResearchPanel(false);
+    resetEvidence();
+    clearTransientAppData();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [resetEvidence]);
+
+  const editCurrentIdea = () => {
+    analysisSequence.current += 1;
+    analysisController.current?.abort();
+    setLoading(false);
+    setResult(null);
+    setCompareResults(null);
+    setDemoMode(false);
+    setError("");
+    setShowResearchPanel(false);
+    resetEvidence();
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const openResearch = () => {
-    if (idea.trim().length < 20) { setError("Add at least 20 characters describing the idea before researching prior art."); return; }
-    setError(""); setShowResearchPanel(true);
-    loadResearch(idea.trim());
-    setTimeout(() => document.getElementById("research-evidence")?.scrollIntoView({ behavior: "smooth" }), 50);
+  useEffect(() => {
+    clearTransientAppData();
+    void warmAnalysisService();
+    if (!Capacitor.isNativePlatform()) return undefined;
+    const handleNewLaunch = () => startNewIdea();
+    window.addEventListener("inventai:new-launch", handleNewLaunch);
+    return () => {
+      window.removeEventListener("inventai:new-launch", handleNewLaunch);
+    };
+  }, [startNewIdea]);
+
+  useEffect(() => () => {
+    analysisController.current?.abort();
+    researchController.current?.abort();
+    window.clearTimeout(noticeTimer.current);
+  }, []);
+
+  const loadResearch = async (source = idea.trim()) => {
+    const sourceIdea = typeof source === "string" ? source.trim() : idea.trim();
+    if (sourceIdea.length < 20) return;
+    const sequence = researchSequence.current + 1;
+    researchSequence.current = sequence;
+    researchController.current?.abort();
+    const requestController = new AbortController();
+    researchController.current = requestController;
+    setShowResearchPanel(true);
+    setResearchLoading(true);
+    setResearchError("");
+    try {
+      const evidence = await researchIdea(sourceIdea, requestController.signal);
+      if (sequence === researchSequence.current) setResearch(evidence);
+    } catch (requestError) {
+      if (sequence === researchSequence.current && requestError.name !== "AbortError") setResearchError(requestError.message);
+    } finally {
+      if (sequence === researchSequence.current) {
+        setResearchLoading(false);
+        researchController.current = null;
+      }
+    }
   };
 
   const runAnalysis = async (mode = "analysis") => {
-    if (idea.trim().length < 20) { setError("Add a little more detail: the problem, target user, and how your idea works."); return; }
-    setLoading(true); setError(""); setResult(null); setCompareResults(null); setDemoMode(false);
+    const sourceIdea = idea.trim();
+    if (sourceIdea.length < 20) {
+      setError("Add the user, their problem, and how your idea helps before requesting a review.");
+      return;
+    }
+    const sequence = analysisSequence.current + 1;
+    analysisSequence.current = sequence;
+    analysisController.current?.abort();
+    const requestController = new AbortController();
+    analysisController.current = requestController;
+    const hasCurrentResult = Boolean(result);
+    setLoading(true);
+    setError("");
+    if (!hasCurrentResult) {
+      setCompareResults(null);
+      setDemoMode(false);
+      resetEvidence();
+    }
+
     try {
       let selected;
       if (compareMode) {
-        const [geminiResult, openaiResult] = await Promise.allSettled([analyzeIdea(idea.trim(), "gemini", mode), analyzeIdea(idea.trim(), "openai", mode)]);
+        const [gemini, openai] = await Promise.allSettled([
+          analyzeIdea(sourceIdea, "gemini", mode, requestController.signal),
+          analyzeIdea(sourceIdea, "openai", mode, requestController.signal),
+        ]);
         const compared = {
-          gemini: geminiResult.status === "fulfilled" ? geminiResult.value : null,
-          openai: openaiResult.status === "fulfilled" ? openaiResult.value : null,
+          gemini: gemini.status === "fulfilled" ? gemini.value : null,
+          openai: openai.status === "fulfilled" ? openai.value : null,
           errors: {
-            gemini: geminiResult.status === "rejected" ? geminiResult.reason.message : "",
-            openai: openaiResult.status === "rejected" ? openaiResult.reason.message : "",
+            gemini: gemini.status === "rejected" ? gemini.reason.message : "",
+            openai: openai.status === "rejected" ? openai.reason.message : "",
           },
         };
-        setCompareResults(compared);
+        if (sequence !== analysisSequence.current) return;
         selected = compared[provider] || compared.gemini || compared.openai;
-        if (!selected) throw new Error("Neither AI provider completed the analysis.");
-      } else selected = await analyzeIdea(idea.trim(), provider, mode);
+        if (!selected) throw new Error("Neither analysis engine completed the review.");
+        setCompareResults(compared);
+      } else {
+        selected = await analyzeIdea(sourceIdea, provider, mode, requestController.signal);
+      }
+      if (sequence !== analysisSequence.current) return;
       setResult(selected);
-      setResearch(null); setResearchError("");
-      if (groundedMode) { setShowResearchPanel(true); loadResearch(idea.trim()); }
+      setDemoMode(false);
+      if (!compareMode) setCompareResults(null);
+      resetEvidence();
+      window.scrollTo({ top: 0, behavior: "auto" });
+      if (groundedMode) void loadResearch(sourceIdea);
+    } catch (requestError) {
+      if (sequence === analysisSequence.current && requestError.name !== "AbortError") setError(requestError.message);
+    } finally {
+      if (sequence === analysisSequence.current) {
+        setLoading(false);
+        analysisController.current = null;
+      }
     }
-    catch (err) { setError(`${err.message} You can still use the instant demo below.`); }
-    finally { setLoading(false); }
   };
 
-  const runDemo = () => { setIdea(EXAMPLE); setResult(DEMO_RESULT); setCompareResults(null); setResearch(null); setResearchError(""); setDemoMode(true); setError(""); setTimeout(() => document.getElementById("report")?.scrollIntoView({ behavior: "smooth" }), 50); };
+  const cancelAnalysis = () => {
+    analysisSequence.current += 1;
+    analysisController.current?.abort();
+    analysisController.current = null;
+    setLoading(false);
+    showNotice("Analysis cancelled. Your idea is still here.");
+  };
+
+  const runDemo = () => {
+    analysisSequence.current += 1;
+    analysisController.current?.abort();
+    setLoading(false);
+    setIdea(EXAMPLE_IDEA);
+    setResult(EXAMPLE_RESULT);
+    setCompareResults(null);
+    setDemoMode(true);
+    setError("");
+    resetEvidence();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const saveProject = () => {
-    if (!result) return;
-    const existing = savedProjects.find((p) => p.idea === idea);
-    const version = { result, provider: result.provider || provider, createdAt: new Date().toLocaleString() };
-    const next = existing ? savedProjects.map((p) => p.id === existing.id ? { ...p, result, versions: [...(p.versions || [{result:p.result,createdAt:p.createdAt}]), version] } : p) : [{ id: Date.now(), idea, result, versions:[version], createdAt: new Date().toLocaleString(), favorite:false }, ...savedProjects].slice(0, 30);
-    setSavedProjects(next); localStorage.setItem("inventai-projects", JSON.stringify(next));
-  };
-  const deleteProject = (id) => { const next = savedProjects.filter((p) => p.id !== id); setSavedProjects(next); localStorage.setItem("inventai-projects", JSON.stringify(next)); };
-  const updateProject = (id, changes) => { const next=savedProjects.map((p)=>p.id===id?{...p,...changes}:p); setSavedProjects(next); localStorage.setItem("inventai-projects",JSON.stringify(next)); };
-  const downloadReport = async () => {
-    if (!reportRef.current) return; setPdfLoading(true);
-    try {
-      const [{ toPng }, { default: jsPDF }] = await Promise.all([import("html-to-image"), import("jspdf")]);
-      await document.fonts?.ready;
-      const data = await toPng(reportRef.current, { pixelRatio: 2, backgroundColor: "#07111f", cacheBust: true });
-      const img = new Image(); img.src = data; await img.decode();
-      const pdf = new jsPDF({ unit: "mm", format: "a4" }); const width = 190; const height = img.height * width / img.width; const page = 277;
-      for (let y = 0, first = true; y < height; y += page) { if (!first) pdf.addPage(); pdf.addImage(data, "PNG", 10, 10 - y, width, height); first = false; }
-      pdf.save(`${(result.title || "InventAI-report").replace(/[^a-z0-9]+/gi, "-")}.pdf`);
-    } catch { setError("PDF generation failed. Try the browser print dialog instead."); } finally { setPdfLoading(false); }
+    if (!result) return false;
+    const existing = savedProjects.find((project) => project.idea === idea);
+    const savedAt = new Date().toISOString();
+    const version = { result, provider: result.provider || provider, createdAt: savedAt };
+    const next = existing
+      ? savedProjects.map((project) => project.id === existing.id
+        ? { ...project, result, versions: [...(project.versions || []), version].slice(-8) }
+        : project)
+      : [{ id: Date.now(), idea, result, versions: [version], createdAt: savedAt, favorite: false }, ...savedProjects].slice(0, 30);
+    if (!saveProjects(next)) {
+      setError("This device could not save another project. Remove an older project and retry.");
+      return false;
+    }
+    setSavedProjects(next);
+    showNotice(existing ? "A new version was saved on this device." : "Idea saved on this device.");
+    return true;
   };
 
-  return <div className="min-h-screen bg-[#050b14] text-slate-100 selection:bg-cyan-400/30">
-    <Navbar />
+  const deleteProject = (id) => {
+    const next = savedProjects.filter((project) => project.id !== id);
+    if (!saveProjects(next)) {
+      setError("This device could not update the idea library. Free some storage and retry.");
+      return false;
+    }
+    setSavedProjects(next);
+    showNotice("Saved idea deleted.");
+    return true;
+  };
+
+  const updateProject = (id, changes) => {
+    const next = savedProjects.map((project) => project.id === id ? { ...project, ...changes } : project);
+    if (!saveProjects(next)) {
+      setError("This device could not update the idea library. Free some storage and retry.");
+      return false;
+    }
+    setSavedProjects(next);
+    return true;
+  };
+
+  const openProject = (project) => {
+    analysisSequence.current += 1;
+    analysisController.current?.abort();
+    setLoading(false);
+    setIdea(project.idea);
+    setResult(project.result);
+    setCompareResults(null);
+    setDemoMode(false);
+    setError("");
+    resetEvidence();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const clearLocalData = () => {
+    clearAllAppData();
+    setSavedProjects([]);
+    startNewIdea();
+    showNotice("Local InventAI data was cleared.");
+  };
+
+  return <div className="app-shell">
+    {!(isMobile && result) && <Navbar onNewIdea={startNewIdea} onClearData={clearLocalData} />}
     <main className={result ? "has-result" : ""}>
-      <section className="home-hero relative overflow-hidden px-5 pb-20 pt-32">
-        <div className="hero-glow" />
-        <div className="relative mx-auto max-w-6xl">
-          <div className="mx-auto max-w-3xl text-center">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-4 py-2 text-xs font-semibold uppercase tracking-[.2em] text-cyan-300"><span className="h-2 w-2 rounded-full bg-cyan-400" /> Independent idea review</div>
-            <h1 className="text-balance text-5xl font-black leading-[1.02] tracking-tight sm:text-7xl">Make the idea <span className="gradient-text">worth building.</span></h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-400">A practical second opinion for founders and student teams. Find the weak assumption, choose one useful experiment, and leave with a plan you can defend.</p>
-          </div>
-          <div className="idea-composer mx-auto mt-12 max-w-4xl rounded-3xl border border-white/10 bg-slate-900/70 p-3 shadow-2xl shadow-cyan-950/30 backdrop-blur md:p-5">
-            <textarea aria-label="Innovation idea" value={idea} onChange={(e) => setIdea(e.target.value)} onKeyDown={(e) => e.ctrlKey && e.key === "Enter" && runAnalysis()} rows={6} placeholder="Describe the problem, who has it, your solution, and what makes it different..." className="w-full resize-none rounded-2xl border border-white/10 bg-[#07111f] p-5 text-base leading-7 outline-none placeholder:text-slate-600 focus:border-cyan-400/50" />
-            <div className="mt-3 flex flex-wrap items-center gap-2 px-1"><span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Idea starters</span>{IDEA_STARTERS.map(([label, template]) => <button key={label} type="button" onClick={() => setIdea(template)} className="rounded-full border border-white/8 bg-white/[.025] px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-cyan-200">{label}</button>)}<span className={`ml-auto text-xs font-bold ${ideaReadiness.score >= 75 ? "text-emerald-300" : ideaReadiness.score >= 50 ? "text-amber-300" : "text-slate-500"}`}>Brief readiness {ideaReadiness.score}%</span></div>
-            {ideaReadiness.missing.length > 0 && idea.length > 0 && <p className="px-1 pt-2 text-xs text-slate-600">Strengthen it with: {ideaReadiness.missing.join(", ")}.</p>}
-            <div className="flex flex-col gap-3 px-1 pt-3 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-xs text-slate-500">{wordCount} words · Ctrl + Enter to analyze</span>
-              <div className="flex flex-wrap gap-3"><button onClick={runDemo} className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-slate-300 hover:bg-white/5">See an example</button><button onClick={()=>runAnalysis("novelty")} disabled={loading} title="Find ways to make the idea meaningfully different" className="rounded-xl border border-violet-400/30 bg-violet-400/10 px-5 py-3 text-sm font-bold text-violet-200 hover:bg-violet-400/15 disabled:opacity-60">Make it different</button><button onClick={()=>runAnalysis("breakthrough")} disabled={loading} title="Solve the idea's biggest technical trade-off" className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-5 py-3 text-sm font-bold text-amber-200 hover:bg-amber-400/15 disabled:opacity-60">Find a breakthrough</button><button onClick={()=>runAnalysis("analysis")} disabled={loading} className="rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-6 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-cyan-500/20 disabled:opacity-60">{loading ? (compareMode ? "Comparing both models…" : "Checking your idea…") : "Check my idea →"}</button></div>
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-white/6 px-1 pt-4"><span className="text-xs font-semibold uppercase tracking-wider text-slate-600">Analysis engine</span>{["gemini","openai"].map((item)=><button key={item} onClick={()=>setProvider(item)} className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize ${provider===item ? "bg-white text-slate-950" : "bg-white/5 text-slate-400"}`}>{item}</button>)}<label title="Search matching papers and public projects" className="ml-auto flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-400"><input type="checkbox" checked={groundedMode} onChange={(e)=>setGroundedMode(e.target.checked)} className="accent-emerald-400"/> Check external sources</label><label title="Ask both AI engines and compare their scores" className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-400"><input type="checkbox" checked={compareMode} onChange={(e)=>setCompareMode(e.target.checked)} className="accent-cyan-400"/> Get a second opinion</label></div>
-          </div>
-          <div className="mx-auto mt-5 flex max-w-4xl flex-wrap items-center justify-center gap-3"><button onClick={openResearch} className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-5 py-2.5 text-sm font-bold text-emerald-300">⌕ Research prior art</button><span className="text-xs text-slate-600">Search papers and existing public implementations without running a full analysis.</span></div>
-          {error && <div role="alert" className="mx-auto mt-5 max-w-4xl rounded-xl border border-rose-400/20 bg-rose-400/5 p-4 text-sm text-rose-200">{error}</div>}
-          {!result && <div className="mx-auto mt-12 max-w-4xl">
-            <p className="mb-4 text-center text-[11px] font-bold uppercase tracking-[.22em] text-slate-600">Every analysis includes</p>
-            <div className="grid grid-cols-2 gap-4 text-center md:grid-cols-4">{[["4", "scored dimensions"], ["3", "recommended phases"], ["1", "experiment to run first"], ["<60s", "typical turnaround"]].map(([n,l]) => <div key={l}><div className="text-2xl font-black text-white">{n}</div><div className="text-xs uppercase tracking-wider text-slate-500">{l}</div></div>)}</div>
-            <p className="mt-4 text-center text-xs text-slate-600">These are output counts, not scores for your idea. The first request can take up to 2 minutes while the free server wakes.</p>
-          </div>}
+      {!result && <IdeaWorkbench
+        idea={idea}
+        onIdeaChange={(value) => { setIdea(value); if (error) setError(""); }}
+        readiness={readiness}
+        loading={loading}
+        error={error}
+        onAnalyze={runAnalysis}
+        onRetry={() => runAnalysis("analysis")}
+        onDemo={runDemo}
+        onResearch={() => loadResearch()}
+        provider={provider}
+        onProviderChange={setProvider}
+        compareMode={compareMode}
+        onCompareChange={setCompareMode}
+        groundedMode={groundedMode}
+        onGroundedChange={setGroundedMode}
+      />}
+      {!result && isMobile && showResearchPanel && <Suspense fallback={null}>
+        <div className="mobile-inline-evidence">
+          <ResearchEvidence evidence={research} loading={researchLoading} error={researchError} onRetry={() => loadResearch()} />
         </div>
-      </section>
-
-      {result && <section id="report" className="px-5 pb-24"><div className="mx-auto max-w-6xl"><ModelComparison results={compareResults}/><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-cyan-400">YOUR INNOVATION BRIEF</p><p className="text-sm text-slate-500">Generated by {result.provider || (demoMode ? "Demo" : provider)}</p></div><div className="flex flex-wrap gap-2">{demoMode && <span className="rounded-full bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-300">DEMO DATA</span>}<button onClick={()=>runAnalysis("novelty")} disabled={loading||demoMode} className="rounded-xl border border-violet-400/20 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-300 disabled:opacity-40">✦ Reinvent for novelty</button><button onClick={()=>runAnalysis("breakthrough")} disabled={loading||demoMode} className="rounded-xl border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-300 disabled:opacity-40">⚡ Breakthrough Lab</button><button onClick={()=>runAnalysis("improve")} disabled={loading||demoMode} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-slate-300 disabled:opacity-40">Improve feasibility</button><button onClick={saveProject} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/5">Save version</button><button onClick={downloadReport} disabled={pdfLoading} className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-950">{pdfLoading ? "Exporting…" : "Export PDF"}</button></div></div>{["novelty","breakthrough"].includes(result.analysis_mode) && result.improved_idea && <div className={`mb-6 rounded-2xl border p-6 ${result.analysis_mode === "breakthrough" ? "border-amber-400/25 bg-gradient-to-r from-amber-400/10 to-rose-400/5" : "border-violet-400/25 bg-gradient-to-r from-violet-400/10 to-cyan-400/5"}`}><p className={`mb-2 text-xs font-black uppercase tracking-[.2em] ${result.analysis_mode === "breakthrough" ? "text-amber-300" : "text-violet-300"}`}>{result.analysis_mode === "breakthrough" ? "Breakthrough Lab · Contradiction resolved" : "Novelty Booster · Reinvented concept"}</p><p className="text-base leading-7 text-slate-200">{result.improved_idea}</p></div>}<div ref={reportRef}><InnovationReport idea={idea} result={result} patentRiskColor={riskColor} /></div><HackathonStudio idea={idea} result={result} projects={savedProjects}/></div></section>}
-      {showResearchPanel && !result && <section id="research-evidence" className="px-5 pb-24"><div className="mx-auto max-w-6xl"><ResearchEvidence evidence={research} loading={researchLoading} error={researchError} onRetry={()=>loadResearch(idea.trim())} /></div></section>}
-      {result && !demoMode && <section id="research-evidence" className="px-5 pb-24"><div className="mx-auto max-w-6xl"><ResearchEvidence evidence={research} loading={researchLoading} error={researchError} onRetry={()=>loadResearch(idea.trim())} /></div></section>}
-      {savedProjects.length > 0 && <ProjectDashboard projects={savedProjects} onOpen={(x)=>{setIdea(x.idea);setResult(x.result);setCompareResults(null);setResearch(null);setResearchError("");window.scrollTo({top:0,behavior:"smooth"});}} onDelete={deleteProject} onUpdate={updateProject}/>} 
-      {result && <MobileDecisionView idea={idea} result={result} projects={savedProjects} onEdit={()=>{setIdea("");setResult(null);setCompareResults(null);setResearch(null);localStorage.removeItem("inventai-draft");window.scrollTo({top:0,behavior:"smooth"});}} />}
+      </Suspense>}
+      {!result && isMobile && savedProjects.length > 0 && <RecentProjects projects={savedProjects} onOpen={openProject} />}
+      {loading && <AnalysisProgress onCancel={cancelAnalysis} />}
+      {result && isMobile && <MobileDecisionView
+        key={`${idea}-${result.title}`}
+        result={result}
+        demoMode={demoMode}
+        onEdit={editCurrentIdea}
+        onNewIdea={startNewIdea}
+        onSave={saveProject}
+        onAnalyze={runAnalysis}
+        loading={loading}
+        compareResults={compareResults}
+        onResearch={() => loadResearch()}
+        research={research}
+        researchLoading={researchLoading}
+        researchError={researchError}
+      />}
+      {!isMobile && <Suspense fallback={<div className="workspace-loading">Loading workspace...</div>}>
+        <DesktopWorkspace
+          idea={idea}
+          result={result}
+          provider={provider}
+          demoMode={demoMode}
+          loading={loading}
+          compareResults={compareResults}
+          savedProjects={savedProjects}
+          research={research}
+          researchLoading={researchLoading}
+          researchError={researchError}
+          showResearchPanel={showResearchPanel}
+          onAnalyze={runAnalysis}
+          onEdit={editCurrentIdea}
+          onSave={saveProject}
+          onLoadResearch={loadResearch}
+          onOpenProject={openProject}
+          onDeleteProject={deleteProject}
+          onUpdateProject={updateProject}
+        />
+      </Suspense>}
     </main>
+    {result && error && <div className="app-toast app-toast--error" role="alert">{error}</div>}
+    {notice && !error && <div className="app-toast" role="status">{notice}</div>}
   </div>;
 }
+
 export default App;

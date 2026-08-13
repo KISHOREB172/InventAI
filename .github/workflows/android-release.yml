@@ -1,0 +1,125 @@
+name: Android release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Signed Android release
+    runs-on: ubuntu-latest
+    env:
+      VITE_API_URL: ${{ vars.VITE_API_URL || 'https://inventai-api-scx1.onrender.com' }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v6
+      - run: npm ci
+      - name: Require a production HTTPS API
+        run: >-
+          node --input-type=module -e
+          "const u = new URL(process.env.VITE_API_URL);
+          if (u.protocol !== 'https:' || ['localhost', '127.0.0.1', '::1', '10.0.2.2'].includes(u.hostname)) {
+            console.error('VITE_API_URL must be a non-local HTTPS URL'); process.exit(1); }"
+      - name: Lint frontend
+        run: npm run lint
+      - name: Test frontend
+        run: npm test
+      - name: Build production web assets
+        run: npm run build
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+      - name: Make Gradle wrapper executable
+        run: chmod +x android/gradlew
+      - name: Decode repository release keystore
+        shell: bash
+        working-directory: frontend/android
+        env:
+          INVENTAI_RELEASE_KEYSTORE_BASE64: ${{ secrets.INVENTAI_RELEASE_KEYSTORE_BASE64 }}
+          INVENTAI_RELEASE_STORE_FILE: ${{ secrets.INVENTAI_RELEASE_STORE_FILE }}
+          INVENTAI_RELEASE_STORE_PASSWORD: ${{ secrets.INVENTAI_RELEASE_STORE_PASSWORD }}
+          INVENTAI_RELEASE_KEY_ALIAS: ${{ secrets.INVENTAI_RELEASE_KEY_ALIAS }}
+          INVENTAI_RELEASE_KEY_PASSWORD: ${{ secrets.INVENTAI_RELEASE_KEY_PASSWORD }}
+        run: |
+          for name in \
+            INVENTAI_RELEASE_KEYSTORE_BASE64 \
+            INVENTAI_RELEASE_STORE_FILE \
+            INVENTAI_RELEASE_STORE_PASSWORD \
+            INVENTAI_RELEASE_KEY_ALIAS \
+            INVENTAI_RELEASE_KEY_PASSWORD
+          do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing repository secret ${name}"
+              exit 1
+            fi
+          done
+          case "$INVENTAI_RELEASE_STORE_FILE" in
+            */*|*\\*)
+              echo "::error::INVENTAI_RELEASE_STORE_FILE must be a filename, not a path"
+              exit 1
+              ;;
+          esac
+          umask 077
+          keystore_path="$RUNNER_TEMP/$INVENTAI_RELEASE_STORE_FILE"
+          printf '%s' "$INVENTAI_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          test -s "$keystore_path"
+      - name: Test and lint Android release
+        run: ./gradlew :app:testReleaseUnitTest :app:lintRelease
+        working-directory: frontend/android
+        env:
+          INVENTAI_RELEASE_STORE_FILE: ${{ runner.temp }}/${{ secrets.INVENTAI_RELEASE_STORE_FILE }}
+          INVENTAI_RELEASE_STORE_PASSWORD: ${{ secrets.INVENTAI_RELEASE_STORE_PASSWORD }}
+          INVENTAI_RELEASE_KEY_ALIAS: ${{ secrets.INVENTAI_RELEASE_KEY_ALIAS }}
+          INVENTAI_RELEASE_KEY_PASSWORD: ${{ secrets.INVENTAI_RELEASE_KEY_PASSWORD }}
+      - name: Build signed Android release APK
+        run: ./gradlew clean validateReleaseSigning :app:assembleRelease
+        working-directory: frontend/android
+        env:
+          INVENTAI_RELEASE_STORE_FILE: ${{ runner.temp }}/${{ secrets.INVENTAI_RELEASE_STORE_FILE }}
+          INVENTAI_RELEASE_STORE_PASSWORD: ${{ secrets.INVENTAI_RELEASE_STORE_PASSWORD }}
+          INVENTAI_RELEASE_KEY_ALIAS: ${{ secrets.INVENTAI_RELEASE_KEY_ALIAS }}
+          INVENTAI_RELEASE_KEY_PASSWORD: ${{ secrets.INVENTAI_RELEASE_KEY_PASSWORD }}
+      - name: Verify and name signed release APK
+        shell: bash
+        working-directory: frontend/android
+        run: |
+          apk="app/build/outputs/apk/release/app-release.apk"
+          test -s "$apk"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$apksigner"
+          "$apksigner" verify --verbose "$apk"
+          cp "$apk" "InventAI-${GITHUB_REF_NAME}.apk"
+      - name: Create or update GitHub Release
+        working-directory: frontend/android
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          asset="InventAI-${GITHUB_REF_NAME}.apk"
+          label="InventAI signed production APK"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$asset#$label" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$asset#$label" \
+              --verify-tag \
+              --generate-notes \
+              --title "InventAI ${GITHUB_REF_NAME}"
+          fi

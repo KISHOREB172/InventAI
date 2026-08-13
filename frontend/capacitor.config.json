@@ -3,6 +3,12 @@
   "appName": "InventAI",
   "webDir": "dist",
   "android": {
-    "allowMixedContent": true
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK"
+    }
   }
 }
