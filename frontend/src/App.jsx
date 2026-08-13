@@ -166,9 +166,9 @@ function App() {
         <div className="hero-glow" />
         <div className="relative mx-auto max-w-6xl">
           <div className="mx-auto max-w-3xl text-center">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-4 py-2 text-xs font-semibold uppercase tracking-[.2em] text-cyan-300"><span className="h-2 w-2 animate-pulse rounded-full bg-cyan-400" /> AI innovation intelligence</div>
-            <h1 className="text-balance text-5xl font-black leading-[1.02] tracking-tight sm:text-7xl">Turn a raw idea into a <span className="gradient-text">winning plan.</span></h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-400">Describe your idea in plain language. InventAI checks whether it is useful, different, buildable, and competition-ready—then tells you exactly what to do next.</p>
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-4 py-2 text-xs font-semibold uppercase tracking-[.2em] text-cyan-300"><span className="h-2 w-2 rounded-full bg-cyan-400" /> Independent idea review</div>
+            <h1 className="text-balance text-5xl font-black leading-[1.02] tracking-tight sm:text-7xl">Make the idea <span className="gradient-text">worth building.</span></h1>
+            <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-400">A practical second opinion for founders and student teams. Find the weak assumption, choose one useful experiment, and leave with a plan you can defend.</p>
           </div>
           <div className="idea-composer mx-auto mt-12 max-w-4xl rounded-3xl border border-white/10 bg-slate-900/70 p-3 shadow-2xl shadow-cyan-950/30 backdrop-blur md:p-5">
             <textarea aria-label="Innovation idea" value={idea} onChange={(e) => setIdea(e.target.value)} onKeyDown={(e) => e.ctrlKey && e.key === "Enter" && runAnalysis()} rows={6} placeholder="Describe the problem, who has it, your solution, and what makes it different..." className="w-full resize-none rounded-2xl border border-white/10 bg-[#07111f] p-5 text-base leading-7 outline-none placeholder:text-slate-600 focus:border-cyan-400/50" />
